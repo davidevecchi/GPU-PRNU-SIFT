@@ -1,0 +1,9 @@
+/PRNU_fingerprints/
+/.idea/
+/CameraFingerprint/
+/VISION/dataset/*
+#/_old/
+/venv/
+
+mat.py
+convert.py
