@@ -4,7 +4,6 @@ import cv2
 import exiftool
 import numpy as np
 
-import time
 from src.utils import Method, Mode
 from src.frame_selector import FrameSelectorRaft, FrameSelectorSift
 
@@ -32,17 +31,34 @@ class Video:
         else:
             self.get_I_frames_index()
             self.get_rotation()
+        if 1 or self.pce_index is None:
+            self.set_pce_index()
         
         print('Rotation: %d' % self.rotation)
         self.save_npz()
+    
+    def set_pce_index(self):
+        if self.method == Method.NEW:
+            self.pce_index = self.I_index
+        elif self.method == Method.NO_INV:
+            self.pce_index = []
+            end = len(self.I_index) - 1  # fixme 8
+            for i in range(len(self.I_index[:end])):
+                idx0 = self.I_index[i]
+                idx1 = self.I_index[i + 1]
+                self.pce_index.append(idx0)
+                self.pce_index.append(idx0 + 1)
+                self.pce_index.append((idx0 + idx1) // 2)
+                self.pce_index.append(idx1 - 1)
+            self.pce_index.append(self.I_index[end])
+        print(f'pce_index: {self.pce_index}')
+        print(f'len(pce_index): {len(self.pce_index)}')
     
     def load_npz(self):
         print(f'Loading {self.npz_file}:', end=' ')
         with np.load(self.npz_file) as npz:
             self.I_index = npz['I_index']
-            if self.method == Method.NEW:
-                self.pce_index = self.I_index
-            elif self.pce_index_name in npz:
+            if self.pce_index_name in npz:
                 self.pce_index = npz[self.pce_index_name]
             self.rotation = npz['rotation'][0]
             self.flip = self.rotation == 180
@@ -75,7 +91,7 @@ class Video:
         os.system('rm -r ' + path_to_file)
     
     def select_anchors(self):
-        if self.method == Method.SIFT:
+        if self.method == Method.ICIP:
             frame_selector = FrameSelectorSift(self, self.mode == Mode.SKIP_GOP0)
         else:
             frame_selector = FrameSelectorRaft(self)

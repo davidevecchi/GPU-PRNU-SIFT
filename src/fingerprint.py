@@ -15,9 +15,8 @@ from src.device_data import DeviceData
 from src.utils import Method, Mode
 from src.video import Video
 
-# FIXME
-METHOD = Method.SIFT
-MODE = Mode.SKIP_GOP0
+METHOD = Method.NEW
+MODE = Mode.ALL
 
 
 class FingerprintAnalyzer:
@@ -69,7 +68,12 @@ class FingerprintAnalyzer:
         if self.loader.hypothesis == 0:
             flag_choice = True
             while flag_choice:
-                choice = self.loader.fingerprint_paths[random.randint(0, len(self.loader.fingerprint_paths) - 1)]
+                # FIXME!!!!!!!!!!!!!!!!!
+                rnd_idx = random.randint(0, len(self.loader.fingerprint_paths) - 1)
+                choice = self.loader.fingerprint_paths[rnd_idx]
+                # choice = 'PRNU_fingerprints/Fingerprint_%s.mat' % ('D25' if 'D06' in self.fingerprint_path else 'D06')
+                # FIXME!!!!!!!!!!!!!!!!!
+                
                 print(choice, self.fingerprint_path)
                 if choice != self.fingerprint_path:
                     flag_choice = False
@@ -116,11 +120,6 @@ class FingerprintAnalyzer:
                   [(self.size_fing[0] - noise.shape[0]), (self.size_fing[1] - noise.shape[1])]]
         pce_anchors = correlation.parallel_PCE(XC.numpy(), len(XC), ranges)
         
-        # fixme
-        # find maximum and frame order
-        # idx_anchor_start = np.argmax(pce_anchors)
-        # idx_anchor_start = np.where(pce_anchors == np.max(pce_anchors))[0][0]
-        
         index = list(range(first_anchor, second_anchor + 1))
         if pce_anchors[1] > pce_anchors[0]:
             index = list(reversed(index))
@@ -128,9 +127,9 @@ class FingerprintAnalyzer:
         return index
     
     def process_video(self):
-        TARGET_PCE = 50
-        MAX_HITS = 3
-        MIN_PCE = 30
+        TARGET_PCE = 50000000000000  # FIXME
+        MAX_HITS = 3000000000000  # FIXME
+        MIN_PCE = 30000000000000  # FIXME
         MAX_ADDED = 12
         
         hit_frames = 0
@@ -158,7 +157,7 @@ class FingerprintAnalyzer:
             if METHOD == Method.NEW:
                 frame_idx = index[i_frame_idx] + p_frame_idx
                 IP_type = 'I' if p_frame_idx == 0 else 'P'
-                print(f'\n{IP_type}-frame:', frame_idx, f'\taccepted {len(pce_array)}/{MAX_ADDED}', end='\t')
+                print(f'{IP_type}-frame:', frame_idx, f'\taccepted {len(pce_array)}/{MAX_ADDED}', end='\t')
             else:
                 frame_idx = index[p_frame_idx]
                 print('frame:', frame_idx, end='\t')
@@ -176,19 +175,19 @@ class FingerprintAnalyzer:
                 if pce >= MIN_PCE:
                     i_frame_idx, p_frame_idx = next_idx(i_frame_idx, p_frame_idx, index)
                     pce_array.append(pce)
-                elif p_frame_idx == 0:
-                    i_frame_idx += 1
-                    pce_array.append(pce)
                 else:
+                    if p_frame_idx == 0:
+                        pce_array.append(pce)
                     i_frame_idx += 1
                     p_frame_idx = 0
+                    oframe = None  # reset oframe if frames are skipped
                 go = len(pce_array) < MAX_ADDED and hit_frames < MAX_HITS and i_frame_idx < len(index)
             else:
                 pce_array.append(pce)
                 p_frame_idx += 1
                 go = p_frame_idx < len(index)
             
-            if go and pce >= TARGET_PCE:
+            if go and pce >= TARGET_PCE and METHOD == Method.NEW:
                 hit_frames += 1
                 go = go and hit_frames < MAX_HITS
             
@@ -202,6 +201,9 @@ class FingerprintAnalyzer:
         noise, W_T = utils.get_noise_WT(frame, self.size_fing)
         pce_res = self.get_pce(W_T, noise)
         print('PCE resizing: %.2f' % pce_res, end='\t')
+        
+        if METHOD == Method.NO_INV:
+            return pce_res, None
         
         printed = False
         try:

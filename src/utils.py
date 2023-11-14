@@ -7,17 +7,17 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
 
-sys.path.insert(1, '../CameraFingerprint')
+sys.path.insert(1, 'CameraFingerprint')
 import src.Functions as Fu
 import src.Filter as Ft
 
 
 class Method(Enum):
-    SIFT, RAFT, NEW = 0, 1, 2
+    ICIP, RAFT, NEW, NO_INV = 0, 1, 2, 3
 
 
 class Mode(Enum):
-    ALL, SKIP_I0, SKIP_GOP0 = 0, 1, 2
+    ALL, SKIP_I0, SKIP_GOP0, TEST = 0, 1, 2, 3
 
 
 def get_tf_flags():

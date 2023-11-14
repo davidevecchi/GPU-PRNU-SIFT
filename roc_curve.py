@@ -2,88 +2,53 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import roc_curve, auc
+import scipy.special
+from matplotlib.ticker import MaxNLocator
+from scipy.special import gamma
+from sklearn.metrics import auc, roc_curve
 
-TARGET_FPR = 0.05
+from scipy.optimize import minimize
+from src.utils import Method
 
-YMIN = 0.7
+TARGET_FPR = 0.1
+
 XMAX = 1.0
-TICKS = 7
+YMIN = 0.67
+TICKS = 12
 
+stats_txt = 'plot/stats.txt'
 cm = plt.get_cmap('tab20')
 
 
-def get_avg_pce(folder, func, device=''):
+def get_avg_pce(folder, func, tau=0, devices=None):
     files = sorted(os.listdir(folder))
     mean_pce = []
     for file in files:
-        if (file.endswith('.npz') and (device == '' or file.startswith(device))
+        if (file.endswith('.npz') and (devices is None or file[:3] in devices)
                 and (not skip_flat_still or ('flat' not in file and 'still' not in file))):
             with np.load(os.path.join(folder, file)) as npz:
-                pce_mat = npz['pce']
-            mean = func(np.array(pce_mat).flatten())
+                pce_mat = npz['pce'].flatten()
+            thr_pce = pce_mat[pce_mat > tau]
+            mean = func(thr_pce)
             mean_pce.append(mean)
     return np.array(mean_pce)
-
-
-P_pce = None
-
-
-def plt_hist(folder):
-    global P_pce
-    files = os.listdir(folder)
-    I_pce = np.empty(0)
-    P_pce = np.empty(0)
-    
-    count = {key[4:7]: 0 for key in files}
-    
-    idxs = []
-    pce_y = []
-    
-    content = {'flat': [], 'indoor': [], 'outdoor': []}
-    movement = {'still': [], 'move': [], 'panrot': []}
-    
-    content = 'flat'
-    
-    for file in files:
-        if file.endswith('.npz'):
-            with np.load(os.path.join(folder, file)) as npz:
-                pce_mat = npz['pce'].flatten()
-            
-            # if file[4:7] == 'D15':
-            if content in file:
-                I_pce = np.concatenate((I_pce, np.array([pce_mat[0], pce_mat[-1]])))
-                P_pce = np.concatenate((P_pce, pce_mat[1:-1]))
-                
-                # I_pce = np.concatenate((I_pce, pce_mat[0::2]))
-                # P_pce = np.concatenate((P_pce, pce_mat[1::2]))
-                pass
-            
-            # P_pce = np.concatenate((P_pce, pce_mat))
-    
-    #         for i, pce in enumerate(pce_mat):
-    #             idxs.append(i)
-    #             pce_y.append(pce)
-    #         count[file[4:7]] += (pce_mat < 20).sum()
-    # print(count)
-    
-    # plt.scatter(pce_y, idxs, alpha=.1)
-    # print(np.percentile(P_pce, 95))
-    # print(np.percentile(P_pce, 99.9))
-    plt.hist(P_pce, bins=128)
-    plt.hist(I_pce, bins=128)
-    plt.title(content)
-    plt.xlim([0, 60])
-    plt.show()
-    input()
 
 
 skip_flat_still = False
 
 
-def plot_roc(axs, folder_h0, folder_h1, label, func=np.mean, device='', bar=False, **kwargs):
-    pce_h0 = get_avg_pce(folder_h0, func)
-    pce_h1 = get_avg_pce(folder_h1, func, device)
+def plot_roc(axs, folder_h0, folder_h1, label, func=np.mean, devices=None, frame_type=None, bar=False, tau=0, **kwargs):
+    pce_h0 = get_avg_pce(folder_h0, func, tau, devices)
+    pce_h1 = get_avg_pce(folder_h1, func, tau, devices)
+    
+    # fixme
+    step = 4
+    if frame_type == 'I':
+        pce_h0 = pce_h0[0::step]
+        pce_h1 = pce_h1[0::step]
+    elif frame_type == 'P':
+        pce_h0 = [pce for i, pce in enumerate(pce_h0) if i % step != 0]
+        pce_h1 = [pce for i, pce in enumerate(pce_h1) if i % step != 0]
     
     labels = [0] * len(pce_h0) + [1] * len(pce_h1)
     all_pce = np.concatenate([pce_h0, pce_h1])
@@ -93,20 +58,20 @@ def plot_roc(axs, folder_h0, folder_h1, label, func=np.mean, device='', bar=Fals
     tau_idx = (np.abs(fpr - TARGET_FPR)).argmin()
     tau = thresholds[tau_idx]
     
-    # if 'lw' not in kwargs:
-    #     kwargs['lw'] = 1
+    if devices is None:
+        devices = ''
     axs[0].plot(
-        fpr, tpr, **kwargs,
-        label='[AUC=%0.3f; TPR=%0.3f @ fpr=%0.4f, tau=%0.1f] %s' % (roc_auc, tpr[tau_idx], fpr[tau_idx], tau, label + ' ' + device)
+            fpr, tpr, **kwargs,
+            label='[AUC=%0.3f; TPR=%0.3f @ fpr=%0.4f, tau=%0.1f] %s' % (roc_auc, tpr[tau_idx], fpr[tau_idx], tau, label + ' ' + str(devices))
     )
     
-    width = 0.3  # the width of the bars
+    width = 0.3
     gap = 0.05
     multiplier = [-1, 1]
     new = plot_roc.x > int(plot_roc.x)
     
-    def formatt(y):
-        return ('%.3f' % y)[1:] if y < .9999 else '1.00'
+    def formatt(val):
+        return ('%.3f' % val)[1:] if val < .9999 else '1.00'
     
     if not bar:
         return
@@ -122,22 +87,6 @@ def plot_roc(axs, folder_h0, folder_h1, label, func=np.mean, device='', bar=Fals
 
 
 plot_roc.x = 0
-
-
-def max_mean_mean(arr):
-    return np.mean(arr[arr > np.mean(arr)])
-
-
-def max_med_mean(arr):
-    return np.median(arr[arr > np.mean(arr)])
-
-
-def max_mean_med(arr):
-    return np.mean(arr[arr > np.median(arr)])
-
-
-def square(arr):
-    return np.mean(arr ** 4)
 
 
 def plt_setup():
@@ -178,64 +127,214 @@ def plt_setup():
     return axs
 
 
-def percentile_weight(arr):
+def power(arr):
     e = 4
     return np.mean(arr ** e) ** (1 / e)
+
+
+def percentile_weights(arr):
+    weights = [np.sum(H0_pce_new[H0_pce_new < pce]) / len(H0_pce_new) for pce in arr]
+    return np.average(arr, weights=weights)
+
+
+H0_pce_new = np.empty(0)  # FIXME !!!!!!!
+
+
+def plt_hist(title, method, devices=None):
+    global H0_pce_new
+    fig, ax = plt.subplots(4, 1, figsize=(16, 9), tight_layout=True, dpi=300, sharex='col')
+    xlim = 200
+    bins = np.arange(0, xlim + .5, .5)
+    base_title = title
+    title += '_ALL' if devices is None else '_' + '-'.join(devices)
     
-    weights = []
-    arr2 = np.concatenate((arr, P_pce))
-    for x in arr:
-        p = np.sum(P_pce < x) / len(P_pce)
-        weights.append(p)
-    mean = np.mean(arr * weights * 2)
-    print(*['%.3f' % x for x in arr], sep='\t')
-    print(*['%.3f' % x for x in weights], sep='\t')
-    print(mean)
-    print()
-    return mean
+    for i in [0, 1]:
+        folder = f'results/results_h{i}_{base_title}'
+        files = os.listdir(folder)
+        A_pce_all = np.empty(0)
+        I_pce_all = np.empty(0)
+        A_pce_avg = np.empty(0)
+        
+        for file in files:
+            if devices is None or file[:3] in devices:
+                with np.load(os.path.join(folder, file)) as npz:
+                    A_pce_vid = npz['pce'].flatten()
+                
+                if method == Method.ICIP:
+                    I_pce_vid = np.array([A_pce_vid[0], A_pce_vid[-1]])
+                elif method == Method.NO_INV:
+                    I_pce_vid = A_pce_vid[0::4]
+                else:
+                    I_pce_vid = np.empty(0)
+                
+                # A_pce_vid = A_pce_vid[A_pce_vid > 19]
+                
+                A_pce_all = np.concatenate((A_pce_all, A_pce_vid))
+                I_pce_all = np.concatenate((I_pce_all, I_pce_vid))
+                A_pce_avg = np.append(A_pce_avg, np.mean(A_pce_vid))
+        
+        # FIXME !!!!
+        if base_title == 'new' and i == 0:
+            H0_pce_new = A_pce_all.copy()
+            
+        med_A, med_I, med_avg, ip0, ip1 = print_stats(A_pce_all, I_pce_all, A_pce_avg, f'h{i}_{title}')
+        
+        ax[i + 0].hist(A_pce_all, bins=bins, label='all frames PCEs')
+        ax[i + 0].hist(I_pce_all, bins=bins, label='I-frames PCEs')
+        ax[i + 2].hist(A_pce_avg, bins=bins, color='tab:cyan', label='videos avg PCEs')
+        ax[i + 0].axvline(x=med_A, label=f'median all frames = {med_A:.1f}', c='tab:green', lw=1)
+        ax[i + 0].axvline(x=med_I, label=f'median I-frames = {med_I:.1f}', c='tab:olive', lw=1)
+        ax[i + 2].axvline(x=med_avg, label=f'median videos avg = {med_avg:.1f}', c='tab:pink', lw=1)
+        ax[i + 0].set_xlim([0, xlim])
+        ax[i + 2].set_xlim([0, xlim])
+        ax[i + 2].xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax[i + 2].yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax[i + 0].legend(loc='upper right')
+        ax[i + 2].legend(loc='upper right')
+        
+        ax1 = ax[i + 0].twinx()
+        xcum = np.sort(A_pce_all)
+        ycum = np.array(range(len(A_pce_all)))
+        ax1.plot(xcum, ycum, label='all frames PCEs CDF', color='tab:red')
+        ax1.set_ylim([0, ycum[-1]] if len(ycum) > 0 else 0)
+        ax1.set_xlim([0, xlim])
+        lines0, labels0 = ax[i + 0].get_legend_handles_labels()
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        ax1.legend(lines0 + lines1, labels0 + labels1, loc='upper right')
+        
+        # ax2 = ax[i + 0].twinx()
+        # sample_mean = np.mean(A_pce_all)
+        # sample_variance = np.var(A_pce_all, ddof=1)
+        # shape, loc, scale = sample_mean ** 2 / sample_variance, 0, sample_variance / sample_mean
+        # x = np.linspace(0, xlim, 10 * xlim)
+        # y = (x ** (shape - 1)) * np.exp(-x / scale) / (scale ** shape)
+        # ax2.plot(x, y, label="Fitted Gamma PDF")
+
+        #
+        # sample_mean = np.mean(A_pce_all)
+        # sample_variance = np.var(A_pce_all)
+        # shape_param = (sample_mean ** 2) / sample_variance
+        # scale_param = sample_variance / sample_mean
+        # x_values = np.linspace(0, xlim, 10 * xlim)
+        # gamma_pdf = (x_values ** (shape_param - 1)) * np.exp(-x_values / scale_param) / (scale_param ** shape_param)
+        # ax2.plot(x_values, gamma_pdf, 'r', label='Fitted gamma pdf')
+    
+    ax[0].set_title('H0 - all frames', y=1, pad=-14)
+    ax[1].set_title('H1 - all frames', y=1, pad=-14)
+    ax[2].set_title('H0 - videos avg', y=1, pad=-14)
+    ax[3].set_title('H1 - videos avg', y=1, pad=-14)
+    
+    fig.suptitle(title, fontsize=16)
+    plt.xticks(range(0, xlim + 1, 10))
+    plt.savefig(os.path.join('plot', title))
+    plt.cla()
+    plt.clf()
+
+
+def print_stats(A_pce_all, I_pce_all, A_pce_avg, title):
+    with open(stats_txt, 'a') as f:
+        IP_ratio = len(I_pce_all) / (len(A_pce_all) - len(I_pce_all)) if len(A_pce_all) > 0 else 0
+        med_A = np.median(A_pce_all)
+        med_I = np.median(I_pce_all)
+        med_avg = np.median(A_pce_avg)
+        f.write('-' * 8 + ' ' + title + ' ' + '-' * 8 + '\n')
+        f.write(f'#I/#P frames:        {IP_ratio:10.4f}' + '\n')
+        f.write(f'median all PCEs:     {med_A:10.4f}' + '\n')
+        f.write(f'median I-frames:     {med_I:10.4f}' + '\n')
+        f.write(f'median videos avg:   {med_avg:10.4f}' + '\n')
+        if len(A_pce_all) > 0:
+            f.write(f'95.0 percentile all: {np.percentile(A_pce_all, 95.0):10.4f}' + '\n')
+            f.write(f'99.9 percentile all: {np.percentile(A_pce_all, 99.9):10.4f}' + '\n')
+            f.write(f'max all frames:      {np.max(A_pce_all):10.4f}' + '\n')
+            f.write(f'max videos avg:      {np.max(A_pce_avg):10.4f}' + '\n')
+        
+        def print_counts(sgn):
+            aa = np.sum((A_pce_all > med_A) if sgn == '>' else (A_pce_all <= med_A))
+            ii = np.sum((I_pce_all > med_A) if sgn == '>' else (I_pce_all <= med_A))
+            pp = aa - ii
+            ip = (ii / pp) / IP_ratio if ii > 0 else 0
+            f.write(f'\nPCE {sgn} median_all_PCEs' + '\n')
+            f.write('#I-frames:     %d' % ii + '\n')
+            f.write('#P-frames:     %d' % pp + '\n')
+            f.write('#I/#P normed:  %.4f' % ip + '\n')
+            return ip
+        
+        ip0 = print_counts('<')
+        ip1 = print_counts('>')
+        f.write('\n\n')
+        
+        return med_A, med_I, med_avg, ip0, ip1
 
 
 def main():
     global skip_flat_still
-    folder_h0_old = 'results/results_h0'
+    folder_h0_icip = 'results/results_h0_icip'
     folder_h0_new = 'results/results_h0_new'
+    folder_h0_new_2 = 'results/results_h0_new_2'
     
-    folder_h1_sift_____ = 'results/results_h1_sift'
-    folder_h1_sift_I0__ = 'results/results_h1_sift_I0'
-    folder_h1_sift_GOP0 = 'results/results_h1_sift_GOP0'
-    folder_h1_new______ = 'results/results_h1_new'
-    folder_h1_new_I0___ = 'results/results_h1_new_I0'
-    folder_h1_new_GOP0_ = 'results/results_h1_new_GOP0'
-    folder_h1_raft_____ = 'results/results_h1_raft'
+    folder_h0_no_inv = 'results/results_h0_no-inv'
+    folder_h1_no_inv = 'results/results_h1_no-inv'
+    folder_h0_no_inv_06_25 = 'results/results_h0_no-inv_06-25'
+    folder_h1_no_inv_06_25 = 'results/results_h1_no-inv_06-25'
     
-    plt_hist(folder_h0_old)
+    folder_h1_icip = 'results/results_h1_icip'
+    folder_h1_icip_I0 = 'results/results_h1_icip_I0'
+    folder_h1_icip_GOP0 = 'results/results_h1_icip_GOP0'
+    folder_h1_new = 'results/results_h1_new'
+    folder_h1_new_2 = 'results/results_h1_new_2'
+    folder_h1_new_I0 = 'results/results_h1_new_I0'
+    folder_h1_new_GOP0 = 'results/results_h1_new_GOP0'
+    folder_h1_raft = 'results/results_h1_raft'
     
-    # plot_roc(folder_h0_old, folder_h1_sift_____, 'SIFT skip', np.mean, True)
-    # plot_roc(folder_h0_new, folder_h1_new______, 'new skip', np.mean, True)
+    with open(stats_txt, 'w') as f:
+        f.write('')
+    
+    for hist in [('icip', Method.ICIP),
+                 ('new', Method.NEW),
+                 ('new_2', Method.NEW),
+                 ('no-inv', Method.NO_INV)]:
+        plt_hist(*hist)
+        plt_hist(*hist, devices=['D06', 'D25'])
+    
+    # plot_roc(folder_h0_icip, folder_h1_icip, 'SIFT skip', np.mean, True)
+    # plot_roc(folder_h0_new, folder_h1_new, 'new skip', np.mean, True)
     devices = ['D06', 'D14', 'D15', 'D19', 'D25']
     devices = ['D06', 'D25']
     
     axss = plt_setup()
     
-    # print(*get_avg_pce(folder_h1_new______, np.mean, 'D25').astype(int))
-    # print(*get_avg_pce(folder_h1_new_GOP0_, np.mean, 'D25').astype(int))
-    # print(*get_avg_pce(folder_h1_new_I0___, np.mean, 'D25').astype(int))
+    # print(*get_avg_pce(folder_h1_new, np.mean, 'D25').astype(int))
+    # print(*get_avg_pce(folder_h1_new_GOP0, np.mean, 'D25').astype(int))
+    # print(*get_avg_pce(folder_h1_new_I0, np.mean, 'D25').astype(int))
     
     for i in range(2):
         axs = axss[:, i]
-        plot_roc(axs, folder_h0_old, folder_h1_sift_____, 'SIFT        ', np.mean, color=cm(3), lw=2)
-        # plot_roc(axs, folder_h0_old, folder_h1_sift_I0__, 'SIFT --I_0  ', np.mean, color=cm(1), lw=2)
-        # plot_roc(axs, folder_h0_old, folder_h1_sift_GOP0, 'SIFT --GOP_0', np.mean, color=cm(5), lw=2)
-        # plot_roc(axs, folder_h0_old, folder_h1_raft_____, 'RAFT        ', np.mean, color=cm(6), lw=2)
-        plot_roc(axs, folder_h0_new, folder_h1_new______, 'NEW         ', np.mean, color=cm(2), lw=2)
-        plot_roc(axs, folder_h0_new, folder_h1_new______, 'NEW perc    ', percentile_weight, color=cm(1), lw=2)
-        plot_roc(axs, folder_h0_new, folder_h1_new______, 'NEW max     ', np.max, color=cm(0), lw=2)
-        # plot_roc(axs, folder_h0_new, folder_h1_new_I0___, 'NEW --I_0   ', np.mean, color=cm(0), lw=2)
-        # plot_roc(axs, folder_h0_new, folder_h1_new_GOP0_, 'NEW --GOP_0 ', np.mean, color=cm(4), lw=2)
-        # plot_roc(axs, folder_h0_new, folder_h1_new______, 'SQUARE      ', np.mean, color=cm(8), lw=2)
+        plot_roc(axs, folder_h0_icip, folder_h1_icip, 'ICIP        ', np.mean, color=cm(4), lw=2)
+        plot_roc(axs, folder_h0_icip, folder_h1_icip, 'ICIP thr=19 ', np.mean, color=cm(10), lw=2, tau=19)
+        # plot_roc(axs, folder_h0_icip, folder_h1_icip_I0, 'SIFT --I_0  ', np.mean, color=cm(1), lw=2)
+        # plot_roc(axs, folder_h0_icip, folder_h1_icip_GOP0, 'SIFT --GOP_0', np.mean, color=cm(5), lw=2)
+        # plot_roc(axs, folder_h0_icip, folder_h1_raft, 'RAFT        ', np.mean, color=cm(6), lw=2)
+        plot_roc(axs, folder_h0_new, folder_h1_new, 'NEW         ', np.mean, color=cm(8), lw=2)
+        # plot_roc(axs, folder_h0_new, folder_h1_new, 'NEW         ', percentile_weights, color=cm(9), lw=2)
+        # plot_roc(axs, folder_h0_new, folder_h1_new, 'NEW         ', power, color=cm(11), lw=2)
+        # plot_roc(axs, folder_h0_new, folder_h1_new, 'NEW perc    ', percentile_weight, color=cm(1), lw=2)
+        # plot_roc(axs, folder_h0_new, folder_h1_new, 'NEW max     ', np.max, color=cm(0), lw=2)
+        # plot_roc(axs, folder_h0_test, folder_h1_test, 'no inv - ALL', np.mean, color=cm(0), lw=2)
+        # plot_roc(axs, folder_h0_test, folder_h1_test, 'no inv - I', np.mean, frame_type='I', color=cm(6), lw=2)
+        # plot_roc(axs, folder_h0_test, folder_h1_test, 'no inv - P', np.mean, frame_type='P', color=cm(2), lw=2)
+        plot_roc(axs, folder_h0_no_inv, folder_h1_no_inv, 'no inv - ALL', np.mean, color=cm(1), lw=2)
+        plot_roc(axs, folder_h0_no_inv, folder_h1_no_inv, 'no inv - I', np.mean, frame_type='I', color=cm(7), lw=2)
+        plot_roc(axs, folder_h0_no_inv, folder_h1_no_inv, 'no inv - P', np.mean, frame_type='P', color=cm(3), lw=2)
+        
+        plot_roc(axs, folder_h0_no_inv_06_25, folder_h1_no_inv_06_25, 'no inv - ALL - 06 25', np.mean, color=cm(0), lw=2)
+        plot_roc(axs, folder_h0_no_inv_06_25, folder_h1_no_inv_06_25, 'no inv - I - 06 25', np.mean, frame_type='I', color=cm(6), lw=2)
+        plot_roc(axs, folder_h0_no_inv_06_25, folder_h1_no_inv_06_25, 'no inv - P - 06 25', np.mean, frame_type='P', color=cm(2), lw=2)
+        # plot_roc(axs, folder_h0_new, folder_h1_new_I0, 'NEW --I_0   ', np.mean, color=cm(0), lw=2)
+        # plot_roc(axs, folder_h0_new, folder_h1_new_GOP0, 'NEW --GOP_0 ', np.mean, color=cm(4), lw=2)
+        # plot_roc(axs, folder_h0_new, folder_h1_new, 'SQUARE      ', np.mean, color=cm(8), lw=2)
         # for j, devide in enumerate(devices):
-        #     plot_roc(axs, folder_h0_new, folder_h1_new______, 'SIFT', np.mean, device=devide, lw=2, color=cm((j + 4) % 20), linestyle='--')
-        #     plot_roc(axs, folder_h0_new, folder_h1_new______, 'new', percentile_weight, device=devide, lw=2, color=cm((j + 4) % 20))
+        #     plot_roc(axs, folder_h0_new, folder_h1_new, 'SIFT', np.mean, device=devide, lw=2, color=cm((j + 4) % 20), linestyle='--')
+        #     plot_roc(axs, folder_h0_new, folder_h1_new, 'new', percentile_weight, device=devide, lw=2, color=cm((j + 4) % 20))
         
         axss[0, i].legend(loc='lower right')
         bar_labels = 'AUC, TPR\n%s'
@@ -247,7 +346,8 @@ def main():
         plot_roc.x = 0
         skip_flat_still = True
     
-    plt.show()
+    plt.savefig('plot/roc.png')
+    # plt.show()
 
 
 if __name__ == '__main__':

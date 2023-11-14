@@ -16,5 +16,7 @@ class CameraFingerprintLoader:
     
     def run_analysis(self):
         for fingerprint_path in self.fingerprint_paths:
-            fingerprint = FingerprintAnalyzer(self, fingerprint_path)
-            fingerprint.run_analysis()
+            device = fingerprint_path[-7:-4]  # FIXME!!!!!!!!!
+            if True or device in ['D06', 'D25']:  # FIXME!!!!!!!!!
+                fingerprint = FingerprintAnalyzer(self, fingerprint_path)
+                fingerprint.run_analysis()
