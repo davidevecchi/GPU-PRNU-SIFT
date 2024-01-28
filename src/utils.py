@@ -47,14 +47,14 @@ def get_noise_WT(resized, size_fing):
 
 def get_matches(queryKeypoints, trainKeypoints, matches):
     med = statistics.median(
-        [math.sqrt(
-            (queryKeypoints[match.queryIdx].pt[0] - trainKeypoints[match.trainIdx].pt[0]) ** 2 +
-            (queryKeypoints[match.queryIdx].pt[1] - trainKeypoints[match.trainIdx].pt[1]) ** 2
-        ) for match in matches]
+            [math.sqrt(
+                    (queryKeypoints[match.queryIdx].pt[0] - trainKeypoints[match.trainIdx].pt[0])**2 +
+                    (queryKeypoints[match.queryIdx].pt[1] - trainKeypoints[match.trainIdx].pt[1])**2
+            ) for match in matches]
     )
     matches = [match for match in matches if math.sqrt(
-        (queryKeypoints[match.queryIdx].pt[0] - trainKeypoints[match.trainIdx].pt[0]) ** 2 +
-        (queryKeypoints[match.queryIdx].pt[1] - trainKeypoints[match.trainIdx].pt[1]) ** 2
+            (queryKeypoints[match.queryIdx].pt[0] - trainKeypoints[match.trainIdx].pt[0])**2 +
+            (queryKeypoints[match.queryIdx].pt[1] - trainKeypoints[match.trainIdx].pt[1])**2
     ) < med * 10]
     return matches
 
@@ -74,7 +74,7 @@ def _RemoveNeighborhood(X, x, ssize):
 
 def warp(noise, matrix, size_Fingeprint):
     list_Wrs = tf.expand_dims(
-        tf.repeat(tf.expand_dims(tf.convert_to_tensor(noise, dtype=tf.float32), axis=0), repeats=len(matrix), axis=0), axis=-1
+            tf.repeat(tf.expand_dims(tf.convert_to_tensor(noise, dtype=tf.float32), axis=0), repeats=len(matrix), axis=0), axis=-1
     )
     batchW = tfa.image.transform(list_Wrs, matrix, 'BILINEAR', [size_Fingeprint[1], size_Fingeprint[2]])
     return list_Wrs, batchW
