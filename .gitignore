@@ -16,3 +16,4 @@ myplot.png
 /video_data/
 /vision/
 frames.txt
+src/__pycache__/
