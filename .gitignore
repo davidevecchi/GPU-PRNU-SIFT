@@ -1,12 +1,18 @@
 /PRNU_fingerprints/
 /.idea/
 /CameraFingerprint/
-/_old/
 /venv/
 
 mat.py
 convert.py
+myplot.png
+
 /plot/
+/_*/
 /results/
-/video_data/
 /vision/dataset/
+/performance/
+/raft_results/
+/video_data/
+/vision/
+frames.txt

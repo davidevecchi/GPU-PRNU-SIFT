@@ -15,12 +15,16 @@ from src.device_data import DeviceData
 from src.utils import Method, Mode
 from src.video import Video
 
-METHOD = Method.NEW
-MODE = Mode.ALL
+METHOD: Method
+MODE: Mode
 
 
 class FingerprintAnalyzer:
-    def __init__(self, loader, fingerprint_path: str):
+    def __init__(self, loader, fingerprint_path: str, method, mode):
+        global METHOD, MODE
+        METHOD = method
+        MODE = mode
+        
         self.loader = loader
         self.fingerprint_path = fingerprint_path
         self.out_file_basename = None
@@ -28,7 +32,7 @@ class FingerprintAnalyzer:
         self.video = None
         
         self.device = None
-        self.device0 = None
+        # self.device0 = None
         
         self.TA_tf = None
         self.norm2 = None
@@ -41,12 +45,17 @@ class FingerprintAnalyzer:
         self.load_device()
         self.load_camera_fingerprint()
         
+        # matching_paths = glob.glob(os.path.join(self.loader.output_path, self.device.id + '*'))
+        # if matching_paths:
+        #     print(f'Files {matching_paths[0]} already exist, skipping.')
+        #     return
+        
         prefix = (self.device.id + '_') if self.loader.hypothesis == 0 else ''
         for i, video_path in enumerate(self.video_paths):
             self.out_file_basename = os.path.join(self.loader.output_path, prefix + os.path.basename(os.path.splitext(video_path)[0]))
             print(f'\n{i + 1}/{len(self.video_paths)}\t' + self.out_file_basename)
             
-            if not os.path.exists(self.out_file_basename + '.npz'):  # fixme
+            if not os.path.exists(self.out_file_basename + '.npz'):
                 self.video = Video(video_path, METHOD, MODE)
                 if self.video.rotation in [90, 270]:
                     print('vertical video, skipping')
@@ -57,31 +66,42 @@ class FingerprintAnalyzer:
                         self.video.pce_index = index
                         self.video.save_npz()
                     pce_array, time_array = self.process_video()
-                    self.save(pce_array, time_array)  # fixme
+                    self.save(pce_array, time_array)
                 self.video.cap.release()
     
     def load_device(self):
         print()
         self.device = DeviceData(self.fingerprint_path)
-        self.device0 = None
-        choice = None
-        if self.loader.hypothesis == 0:
-            flag_choice = True
-            while flag_choice:
-                # FIXME!!!!!!!!!!!!!!!!!
-                rnd_idx = random.randint(0, len(self.loader.fingerprint_paths) - 1)
-                choice = self.loader.fingerprint_paths[rnd_idx]
-                # choice = 'PRNU_fingerprints/Fingerprint_%s.mat' % ('D25' if 'D06' in self.fingerprint_path else 'D06')
-                # FIXME!!!!!!!!!!!!!!!!!
-                
-                print(choice, self.fingerprint_path)
-                if choice != self.fingerprint_path:
-                    flag_choice = False
-            self.device0 = DeviceData(self.fingerprint_path, choice)
-            print('device 0:', self.device0.id)
-        test_set_device = os.path.join(self.loader.test_set, (self.device if self.loader.hypothesis == 1 else self.device0).id + '*')
-        self.video_paths = sorted(glob.glob(test_set_device))
-        print('device 1:', self.device.id)
+        print('device:', self.device.id)
+        # self.device0 = None
+        # choice = None
+        # if self.loader.hypothesis == 0:
+        #     flag_choice = True
+        #     while flag_choice:
+        #         # FIXME!!!!!!!!!!!!!!!!!
+        #         rnd_idx = random.randint(0, len(self.loader.fingerprint_paths) - 1)
+        #         choice = self.loader.fingerprint_paths[rnd_idx]
+        #         # choice = 'PRNU_fingerprints/Fingerprint_%s.mat' % ('D25' if 'D06' in self.fingerprint_path else 'D06')
+        #         # FIXME!!!!!!!!!!!!!!!!!
+        #
+        #         print(choice, self.fingerprint_path)
+        #         if choice != self.fingerprint_path:
+        #             flag_choice = False
+        #     self.device0 = DeviceData(self.fingerprint_path, choice)
+        #     print('device 0:', self.device0.id)
+        if self.loader.hypothesis == 1:
+            test_set_device = os.path.join(self.loader.test_set, self.device.id + '*')
+            self.video_paths = sorted(glob.glob(test_set_device))
+            # test_set_device = os.path.join(self.loader.test_set, (self.device if self.loader.hypothesis == 1 else self.device0).id + '*')
+        else:
+            all_vids = os.listdir(self.loader.test_set)
+            test_set_device = []
+            while len(test_set_device) < 12:  # fixme
+                rnd_idx = random.randint(0, len(all_vids) - 1)
+                if not all_vids[rnd_idx].startswith(self.device.id):
+                    test_set_device.append(os.path.join(self.loader.test_set, os.path.join(all_vids[rnd_idx])))
+            self.video_paths = sorted(test_set_device)
+        print(self.video_paths)
         print('-------------')
     
     def load_camera_fingerprint(self):
@@ -126,28 +146,34 @@ class FingerprintAnalyzer:
         
         return index
     
+    @staticmethod
+    def next_idx(i_idx, p_idx, _index):
+        if i_idx + 1 < len(_index) and _index[i_idx] + p_idx >= _index[i_idx + 1]:
+            i_idx += 1
+            p_idx = 0
+        else:
+            p_idx += 1
+        return i_idx, p_idx
+    
     def process_video(self):
-        TARGET_PCE = 50000000000000  # FIXME
-        MAX_HITS = 3000000000000  # FIXME
-        MIN_PCE = 30000000000000  # FIXME
-        MAX_ADDED = 12
-        
+        MAX_ADDED = 24  # FIXME
+        if self.loader.hypothesis == 0 or METHOD != Method.NEW:
+            MIN_PCE = 9e9
+            TARGET_PCE = 9e9
+            MAX_HITS = MAX_ADDED
+        else:
+            MIN_PCE = self.loader.h0_percentile
+            TARGET_PCE = self.loader.h0_max  # FIXME
+            MAX_HITS = 4  # FIXME
+            
         hit_frames = 0
-        i_frame_idx = 1 if MODE == Mode.SKIP_GOP0 else 0
-        p_frame_idx = 1 if MODE == Mode.SKIP_I0 else 0
+        i_frame_idx = 1 if MODE == Mode.GOP0 else 0
+        p_frame_idx = 1 if MODE == Mode.I0 else 0
         
         index = self.video.pce_index
         time_array = []
         pce_array = []
         oframe = None
-        
-        def next_idx(i_idx, p_idx, _index):
-            if i_idx + 1 < len(_index) and _index[i_idx] + p_idx >= _index[i_idx + 1]:
-                i_idx += 1
-                p_idx = 0
-            else:
-                p_idx += 1
-            return i_idx, p_idx
         
         self.video.reset_cap()
         
@@ -157,7 +183,7 @@ class FingerprintAnalyzer:
             if METHOD == Method.NEW:
                 frame_idx = index[i_frame_idx] + p_frame_idx
                 IP_type = 'I' if p_frame_idx == 0 else 'P'
-                print(f'{IP_type}-frame:', frame_idx, f'\taccepted {len(pce_array)}/{MAX_ADDED}', end='\t')
+                print(f'{IP_type}-frame: {frame_idx}\taccepted {len(pce_array)}/{MAX_ADDED}', end='\t')
             else:
                 frame_idx = index[p_frame_idx]
                 print('frame:', frame_idx, end='\t')
@@ -173,7 +199,7 @@ class FingerprintAnalyzer:
             
             if METHOD == Method.NEW:
                 if pce >= MIN_PCE:
-                    i_frame_idx, p_frame_idx = next_idx(i_frame_idx, p_frame_idx, index)
+                    i_frame_idx, p_frame_idx = self.next_idx(i_frame_idx, p_frame_idx, index)
                     pce_array.append(pce)
                 else:
                     if p_frame_idx == 0:
@@ -202,11 +228,12 @@ class FingerprintAnalyzer:
         pce_res = self.get_pce(W_T, noise)
         print('PCE resizing: %.2f' % pce_res, end='\t')
         
-        if METHOD == Method.NO_INV:
-            return pce_res, None
+        # if METHOD == Method.RND:  # fixme
+        #     return pce_res, None
         
         printed = False
         try:
+            assert METHOD != Method.RND  # fixme
             assert oframe is not None
             pce_corr, H = self.pce_correction(frame, oframe, noise)
             print('PCE correction: %.2f' % pce_corr, end='\t  ')

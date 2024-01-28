@@ -8,9 +8,15 @@ import numpy as np
 import torch
 import torchvision
 from matplotlib import pyplot as plt
-from torchvision.io import read_video
 from torchvision.models.optical_flow import raft_small, Raft_Small_Weights
+from torchvision.io import read_video
 from torchvision.transforms import functional
+
+# pytorch                   1.13.1          py3.7_cuda11.7_cudnn8.5.0_0    pytorch
+# pytorch-cuda              11.7                 h778d358_5    pytorch
+# pytorch-mutex             1.0                        cuda    pytorch
+# torchvision               0.14.1               py37_cu117    pytorch
+
 
 from src import utils
 
@@ -30,11 +36,12 @@ class FrameSelector(ABC):
     
     def get_less_stabilized_anchors(self):
         anchor = self.get_anchor()
+        print('+++++++++++++++++++++++++++', anchor)
         return self.video.I_index[anchor], self.video.I_index[anchor + 1]
 
 
 class FrameSelectorSift(FrameSelector):
-    INF = 999999
+    INF = 9e9
     
     def __init__(self, video, skip_gop0=False):
         super().__init__(video, skip_gop0)
@@ -94,7 +101,7 @@ class FrameSelectorSift(FrameSelector):
 
 class FrameSelectorRaft(FrameSelector):
     torchvision.set_video_backend('video_reader')
-    SIZE = [520, 960]
+    SIZE = [480, 640]
     
     weights = Raft_Small_Weights.DEFAULT
     transforms = weights.transforms()
@@ -112,6 +119,7 @@ class FrameSelectorRaft(FrameSelector):
         
         self.save_folder = 'raft_results'
         self.npz_file = os.path.join(self.save_folder, os.path.splitext(os.path.basename(self.video.path))[0] + '_raft.npz')
+        torchvision.set_video_backend('video_reader')
     
     @staticmethod
     def preprocess(img1_batch, img2_batch):
@@ -120,7 +128,7 @@ class FrameSelectorRaft(FrameSelector):
         return FrameSelectorRaft.transforms(img1_batch, img2_batch)
     
     def get_anchor(self):
-        if os.path.exists(self.npz_file):
+        if os.path.exists(self.npz_file):  # fixme
             self.load_npz()
         else:
             self.compute_move_avg()
@@ -134,9 +142,8 @@ class FrameSelectorRaft(FrameSelector):
     
     def compute_move_avg(self):
         torch.cuda.empty_cache()
-        print('Loading frames from', self.video.path, end=' ')
-        frames, _, _ = read_video(str(self.video.path), output_format='TCHW', pts_unit='sec')
-        print('ok')
+        print('Loading frames from', self.video.path)
+        frames, _, _ = read_video(self.video.path, output_format='TCHW', pts_unit='sec')
         
         prev_flow = None
         batch_size = 2

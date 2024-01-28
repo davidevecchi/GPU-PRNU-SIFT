@@ -13,21 +13,24 @@ import src.Filter as Ft
 
 
 class Method(Enum):
-    ICIP, RAFT, NEW, NO_INV = 0, 1, 2, 3
+    ICIP, RAFT, NEW, RND = 0, 1, 2, 3
+    # NO_INV = 3
 
 
 class Mode(Enum):
-    ALL, SKIP_I0, SKIP_GOP0, TEST = 0, 1, 2, 3
+    ALL, I0, GOP0 = 0, 1, 2
 
 
 def get_tf_flags():
     FLAGS = tf.compat.v1.flags.FLAGS
     # dataset
     tf.compat.v1.flags.DEFINE_string('hypothesis', '1', 'hypothesis to check (1 or 0)')
-    tf.compat.v1.flags.DEFINE_string('videos', '../../../home/testImages/VISION/video_stabilization/', 'path to videos')
-    tf.compat.v1.flags.DEFINE_string('fingerprint', 'fingerprints/*', 'path to fingerprint')
-    tf.compat.v1.flags.DEFINE_string('output', 'OUTPUT/', 'path to output')
+    tf.compat.v1.flags.DEFINE_string('videos', 'vision/dataset/', 'path to videos')
+    tf.compat.v1.flags.DEFINE_string('fingerprint', 'PRNU_fingerprints/', 'path to fingerprint')
+    tf.compat.v1.flags.DEFINE_string('output', 'results/', 'path to output')
     tf.compat.v1.flags.DEFINE_string('gpu_dev', '/gpu:0', 'gpu device')
+    tf.compat.v1.flags.DEFINE_string('method', 'ICIP', 'method')
+    tf.compat.v1.flags.DEFINE_string('mode', 'ALL', 'mode')
     
     physical_devices = tf.config.list_physical_devices('GPU')
     for gpu_instance in physical_devices:

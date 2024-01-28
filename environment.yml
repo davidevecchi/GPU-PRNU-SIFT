@@ -5,14 +5,14 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.7  #.12
+  - python=3.11  #.12
   - pytorch  # =1.13.1
   - pytorch-cuda  # =11.7
   - torchvision  # =0.14.1
-  - tensorflow=2.2.0
-  - tensorflow-gpu=2.2.0
-  - tensorflow-base=2.2.0
-  - tensorflow-estimator=2.2.0
+  - tensorflow # =2.2.0
+  - tensorflow-gpu # =2.2.0
+  - tensorflow-base # =2.2.0
+  - tensorflow-estimator # =2.2.0
   - scikit-learn
   - matplotlib
   - opencv  # 4.5.3
@@ -20,5 +20,5 @@ dependencies:
   - pip
   - av
   - pip:
-    - pyexiftool==0.4.11
-    - tensorflow-addons==0.11.2
+    - pyexiftool # ==0.4.11
+    - tensorflow-addons # ==0.11.2

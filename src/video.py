@@ -1,4 +1,5 @@
 import os
+from time import sleep
 
 import cv2
 import exiftool
@@ -6,6 +7,7 @@ import numpy as np
 
 from src.utils import Method, Mode
 from src.frame_selector import FrameSelectorRaft, FrameSelectorSift
+import random
 
 
 class Video:
@@ -19,47 +21,54 @@ class Video:
         self.rotation = 0
         
         self.I_index = None
-        self.pce_index = None  # fixme rename
+        self.pce_index = None
         self.pce_index_name = self.method.name + '_index'
         
         self.npz_dict = dict()
         self.npz_file = os.path.join('video_data', os.path.splitext(os.path.basename(self.path))[0] + '.npz')
-        self.npz_exists = os.path.exists(self.npz_file)
         
-        if self.npz_exists:
+        if os.path.exists(self.npz_file):
             self.load_npz()
         else:
             self.get_I_frames_index()
             self.get_rotation()
-        if 1 or self.pce_index is None:
-            self.set_pce_index()
-        
+            
+        if self.method == Method.NEW:
+            self.pce_index = self.I_index
+        elif self.method == Method.RND:
+            start = 0
+            if self.mode == Mode.I0:
+                start = 1
+            elif self.mode == Mode.GOP0:
+                start = self.I_index[1]
+            self.pce_index = random.sample(range(start, self.I_index[-1] + 1), 24)  # fixme
+            
         print('Rotation: %d' % self.rotation)
         self.save_npz()
     
-    def set_pce_index(self):
-        if self.method == Method.NEW:
-            self.pce_index = self.I_index
-        elif self.method == Method.NO_INV:
-            self.pce_index = []
-            end = len(self.I_index) - 1  # fixme 8
-            for i in range(len(self.I_index[:end])):
-                idx0 = self.I_index[i]
-                idx1 = self.I_index[i + 1]
-                self.pce_index.append(idx0)
-                self.pce_index.append(idx0 + 1)
-                self.pce_index.append((idx0 + idx1) // 2)
-                self.pce_index.append(idx1 - 1)
-            self.pce_index.append(self.I_index[end])
-        print(f'pce_index: {self.pce_index}')
-        print(f'len(pce_index): {len(self.pce_index)}')
+    # def set_pce_index(self):
+    #     if self.method == Method.NEW:
+    #         self.pce_index = self.I_index
+    #     # elif self.method == Method.NO_INV:
+    #     #     self.pce_index = []
+    #     #     end = len(self.I_index) - 1  # fixme 8
+    #     #     for i in range(len(self.I_index[:end])):
+    #     #         idx0 = self.I_index[i]
+    #     #         idx1 = self.I_index[i + 1]
+    #     #         self.pce_index.append(idx0)
+    #     #         self.pce_index.append(idx0 + 1)
+    #     #         self.pce_index.append((idx0 + idx1) // 2)
+    #     #         self.pce_index.append(idx1 - 1)
+    #     #     self.pce_index.append(self.I_index[end])
+    #     print(f'pce_index: {self.pce_index}')
+    #     print(f'len(pce_index): {len(self.pce_index)}')
     
     def load_npz(self):
         print(f'Loading {self.npz_file}:', end=' ')
         with np.load(self.npz_file) as npz:
             self.I_index = npz['I_index']
-            if self.pce_index_name in npz:
-                self.pce_index = npz[self.pce_index_name]
+            # if self.pce_index_name in npz:  # FIXME
+            #     self.pce_index = npz[self.pce_index_name]
             self.rotation = npz['rotation'][0]
             self.flip = self.rotation == 180
             for key in npz:
@@ -82,6 +91,7 @@ class Video:
     def get_I_frames_index(self):
         path_to_file = 'frames.txt'
         os.system('ffprobe %s -show_frames 2> /dev/null | grep -E pict_type > %s' % (self.path, path_to_file))
+        sleep(1)
         f = open(path_to_file, 'r')
         lines = f.readlines()
         self.I_index = []
@@ -92,9 +102,12 @@ class Video:
     
     def select_anchors(self):
         if self.method == Method.ICIP:
-            frame_selector = FrameSelectorSift(self, self.mode == Mode.SKIP_GOP0)
+            frame_selector = FrameSelectorSift(self, self.mode == Mode.GOP0)
+        elif self.method == Method.RAFT:
+            frame_selector = FrameSelectorRaft(self, self.mode == Mode.GOP0)
         else:
-            frame_selector = FrameSelectorRaft(self)
+            print('Method not recognised, pce_index is None')
+            exit(1)
         first_anchor, second_anchor = frame_selector.get_less_stabilized_anchors()
         self.reset_cap()
         return first_anchor, second_anchor
