@@ -12,8 +12,6 @@ TARGET_FPR = 0.05
 
 XMAX = .2
 YMIN = 0.6
-# XMAX = 1
-# YMIN = 0
 YTICKS = 9
 XTICKS = 5
 
