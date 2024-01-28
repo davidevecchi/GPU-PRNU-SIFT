@@ -1,6 +1,6 @@
 # GPU-accelerated SIFT-aided source identification of stabilized videos
 
-This is the official code implementation of the "ICIP 2022" paper ["GPU-accelerated SIFT-aided source identification of stabilized videos"](https://scholar.google.com/citations?view_op=view_citation&hl=en&user=C0v9f-cAAAAJ&citation_for_view=C0v9f-cAAAAJ:UeHWp8X0CEIC)
+This is a revised version of the official code implementation of the "ICIP 2022" paper ["GPU-accelerated SIFT-aided source identification of stabilized videos"](https://scholar.google.com/citations?view_op=view_citation&hl=en&user=C0v9f-cAAAAJ&citation_for_view=C0v9f-cAAAAJ:UeHWp8X0CEIC)
 
 ## Requirements
 
