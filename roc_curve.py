@@ -188,19 +188,6 @@ def plt_setup(xmax=XMAX, ymin=YMIN, xticks=XTICKS, yticks=YTICKS):
     return axs
 
 
-def power(arr):
-    e = 4
-    return np.mean(arr**e)**(1 / e)
-
-
-def percentile_weights(arr):
-    weights = [np.sum(H0_pce_new[H0_pce_new < pce]) / len(H0_pce_new) for pce in arr]
-    return np.average(arr, weights=weights)
-
-
-# H0_pce_new = np.empty(0)  # FIXME !!!!!!!
-
-
 def plt_hist(title, method, devices=None):
     global H0_pce_new
     fig, ax = plt.subplots(4, 1, figsize=(16, 9), tight_layout=True, dpi=300, sharex='col')
