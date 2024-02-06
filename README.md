@@ -6,11 +6,11 @@ The code has undergone a comprehensive restructuring, now organized into modules
 
 ### Usage
 
-To utilize the newly incorporated methods and testing modalities described in the paper, execute the following commands:
+To utilize the newly implemented methods and testing modalities described in the paper, execute the following commands:
 
 ```shell
-python -u main.py --hypothesis 0 --method 'ICIP|RAFT|NEW' --mode 'ALL|I0|GOP0' --videos 'vision/dataset/' --fingerprint 'PRNU_fingerprints/' --output 'results'
-python -u main.py --hypothesis 1 --method 'ICIP|RAFT|NEW' --mode 'ALL|I0|GOP0' --videos 'vision/dataset/' --fingerprint 'PRNU_fingerprints/' --output 'results'
+python -u main.py --hypothesis 0 --method {ICIP|RAFT|NEW} --mode {ALL|I0|GOP0} --videos <vision/dataset/> --fingerprint <PRNU_fingerprints/> --output 'results'
+python -u main.py --hypothesis 1 --method {ICIP|RAFT|NEW} --mode {ALL|I0|GOP0} --videos <vision/dataset/> --fingerprint <PRNU_fingerprints/> --output 'results'
 ```
 
 ### Additional Information
