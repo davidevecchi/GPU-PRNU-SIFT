@@ -1,6 +1,6 @@
 # Frames Selection Strategies for PRNU-Based Source Camera Verification of Stabilized Videos
 
-This repository contains a revised implementation of the official code for the "ICIP 2022" paper ["GPU-accelerated SIFT-aided source identification of stabilized videos"](https://scholar.google.com/citations?view_op=view_citation&hl=en&user=C0v9f-cAAAAJ&citation_for_view=C0v9f-cAAAAJ:UeHWp8X0CEIC)
+This repository contains a revised implementation of the official code for the "ICIP 2022" paper ["GPU-accelerated SIFT-aided source identification of stabilized videos"](https://scholar.google.com/citations?view_op=view_citation&hl=en&user=C0v9f-cAAAAJ&citation_for_view=C0v9f-cAAAAJ:UeHWp8X0CEIC).
 
 The code has undergone a comprehensive restructuring, now organized into modules and classes for improved clarity and maintainability.
 
@@ -15,4 +15,4 @@ python main.py --hypothesis 1 --method {ICIP|RAFT|NEW} --mode {ALL|I0|GOP0} --vi
 
 ### Additional Information
 
-For further details on the implementation, its functionalities and usage, please refer to the original repository: [GPU-PRNU-SIFT](https://github.com/AMontiB/GPU-PRNU-SIFT)
+For further details on the implementation, its functionalities and usage, please refer to the original repository: [GPU-PRNU-SIFT](https://github.com/AMontiB/GPU-PRNU-SIFT).
