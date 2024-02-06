@@ -9,8 +9,8 @@ The code has undergone a comprehensive restructuring, now organized into modules
 To utilize the newly implemented methods and testing modalities described in the paper, execute the following commands:
 
 ```python
-python -u main.py --hypothesis 0 --method {ICIP|RAFT|NEW} --mode {ALL|I0|GOP0} --videos <VISION_dataset/> --fingerprint <PRNU_fingerprints/> --output 'results'
-python -u main.py --hypothesis 1 --method {ICIP|RAFT|NEW} --mode {ALL|I0|GOP0} --videos <VISION_dataset/> --fingerprint <PRNU_fingerprints/> --output 'results'
+python main.py --hypothesis 0 --method {ICIP|RAFT|NEW} --mode {ALL|I0|GOP0} --videos <VISION_dataset/> --fingerprint <PRNU_fingerprints/> --output 'results'
+python main.py --hypothesis 1 --method {ICIP|RAFT|NEW} --mode {ALL|I0|GOP0} --videos <VISION_dataset/> --fingerprint <PRNU_fingerprints/> --output 'results'
 ```
 
 ### Additional Information
