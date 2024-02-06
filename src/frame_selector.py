@@ -111,8 +111,8 @@ class FrameSelectorRaft(FrameSelector):
     
     def __init__(self, video, skip_gop0=False):
         super().__init__(video, skip_gop0)
-        self.flow_move_avg = []
-        self.diff_move_avg = []
+        self.flow_magnitude_avg = []
+        self.diff_magnitude_avg = []
         self.flow_med = []
         self.diff_med = []
         self.prod_med = []
@@ -132,13 +132,13 @@ class FrameSelectorRaft(FrameSelector):
             self.load_npz()
         else:
             self.compute_move_avg()
-            np.savez(self.npz_file, flow=self.flow_move_avg, diff=self.diff_move_avg)
+            np.savez(self.npz_file, flow=self.flow_magnitude_avg, diff=self.diff_magnitude_avg)
         return self.compute_momentum()
     
     def load_npz(self):
         npz = np.load(self.npz_file)
-        self.flow_move_avg = npz['flow']
-        self.diff_move_avg = npz['diff']
+        self.flow_magnitude_avg = npz['flow']
+        self.diff_magnitude_avg = npz['diff']
     
     def compute_move_avg(self):
         torch.cuda.empty_cache()
@@ -166,13 +166,13 @@ class FrameSelectorRaft(FrameSelector):
             
             for j in range(len(predicted_flows)):
                 flow = predicted_flows[j]
-                flow_move = torch.sqrt(flow[0] ** 2 + flow[1] ** 2)
-                self.flow_move_avg.append(torch.median(flow_move).item())
+                flow_magnitude = torch.sqrt(flow[0] ** 2 + flow[1] ** 2)
+                self.flow_magnitude_avg.append(torch.mean(flow_magnitude).item())
                 
                 if prev_flow is not None:
                     diff = flow - prev_flow
-                    diff_move = torch.sqrt(diff[0] ** 2 + diff[1] ** 2)
-                    self.diff_move_avg.append(torch.median(diff_move).item())
+                    diff_magnitude = torch.sqrt(diff[0] ** 2 + diff[1] ** 2)
+                    self.diff_magnitude_avg.append(torch.mean(diff_magnitude).item())
                 
                 prev_flow = predicted_flows[j]
         
@@ -184,8 +184,8 @@ class FrameSelectorRaft(FrameSelector):
             anchor0 = int(self.video.I_index[i])
             anchor1 = int(self.video.I_index[i + 1])
             
-            self.flow_med.append(np.mean(self.flow_move_avg[anchor0:anchor1 - 1]))
-            self.diff_med.append(np.median(self.diff_move_avg[anchor0:anchor1 - 2]))
+            self.flow_med.append(np.mean(self.flow_magnitude_avg[anchor0:anchor1 - 1]))
+            self.diff_med.append(np.mean(self.diff_magnitude_avg[anchor0:anchor1 - 2]))
             self.prod_med.append(self.flow_med[-1] ** 2 * self.diff_med[-1])
             
             """
@@ -216,8 +216,8 @@ class FrameSelectorRaft(FrameSelector):
             prod_med_pad += [self.prod_med[i]] * (anchor1 - anchor0)
         
         fig, ax = plt.subplots(figsize=(80, 12))
-        ax.plot(range(len(self.flow_move_avg)), self.flow_move_avg, label='flow')
-        ax.plot(range(len(self.diff_move_avg)), self.diff_move_avg, label='diff')
+        ax.plot(range(len(self.flow_magnitude_avg)), self.flow_magnitude_avg, label='flow')
+        ax.plot(range(len(self.diff_magnitude_avg)), self.diff_magnitude_avg, label='diff')
         ax.plot(range(len(prod_med_pad)), prod_med_pad, label='prod med', linewidth=3)
         ax.plot(range(len(diff_med_pad)), diff_med_pad, label='diff med')
         ax.plot(range(len(flow_med_pad)), flow_med_pad, label='flow med')
@@ -225,8 +225,8 @@ class FrameSelectorRaft(FrameSelector):
         ax.grid(True, which='major', axis='x', linestyle='--')
         plt.tight_layout()
         ax.margins(x=0, y=0)
-        ax.set_ylim(0, max(np.max(self.flow_move_avg), np.max(self.diff_move_avg)) + 1)
-        ax.set_xlim(0, len(self.flow_move_avg) + 1)
+        ax.set_ylim(0, max(np.max(self.flow_magnitude_avg), np.max(self.diff_magnitude_avg)) + 1)
+        ax.set_xlim(0, len(self.flow_magnitude_avg) + 1)
         ax.legend()
         plt.show()
 

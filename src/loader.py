@@ -20,7 +20,8 @@ class CameraFingerprintLoader:
         self.fingerprint_paths = sorted(glob.glob(os.path.join(FLAGS.fingerprint, '*')))
         if self.hypothesis == 1 and self.method == Method.NEW:
             _, self.h0_percentile, self.h0_max = roc_curve.load_videos_pce(self.output_path.replace('H1', 'H0'), perc=95)  # , devices = None)  # FIXME !!!
-            print(self.h0_percentile, self.h0_max)
+            print('95 percentile:', self.h0_percentile, '\tmax:', self.h0_max)
+            exit()
             
     def start(self):
         print(self.output_path)

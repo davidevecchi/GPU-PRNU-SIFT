@@ -156,14 +156,14 @@ class FingerprintAnalyzer:
         return i_idx, p_idx
     
     def process_video(self):
-        MAX_ADDED = 24  # FIXME
+        MAX_ADDED = 12  # FIXME
         if self.loader.hypothesis == 0 or METHOD != Method.NEW:
             MIN_PCE = 9e9
             TARGET_PCE = 9e9
             MAX_HITS = MAX_ADDED
         else:
             MIN_PCE = self.loader.h0_percentile
-            TARGET_PCE = self.loader.h0_max  # FIXME
+            TARGET_PCE = self.loader.h0_max
             MAX_HITS = 4  # FIXME
             
         hit_frames = 0

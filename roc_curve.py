@@ -6,6 +6,7 @@ from matplotlib.ticker import MaxNLocator
 import scipy.stats as stats
 from sklearn.metrics import auc, roc_curve
 
+import pandas as pd
 from src.utils import Method
 
 TARGET_FPR = 0.05
@@ -16,15 +17,22 @@ YTICKS = 9
 XTICKS = 5
 
 stats_txt = 'plot/stats.txt'
+
+# def cm(x):
+#     idx = [0, 1, 3, 2, 4, 5, 6, 7, 8, 9, 10]
+#     cm = plt.get_cmap('tab10')
+#     return cm(idx[x])
+
+
 cm = plt.get_cmap('tab10')
 
 
-def load_videos_pce(folder: str, func=np.mean, perc=95, devices=None):
+def load_videos_pce(folder: str, func=np.mean, perc=95, device=None):
     files = sorted(os.listdir(folder))
     mean_pce = []
     all_pce = np.empty(0, dtype=np.float32)
     for file in files:
-        if file.endswith('.npz') and (devices is None or file[:3] in devices):  # os.path.basename(folder).startswith('H0') or
+        if file.endswith('.npz') and (device is None or device == file[:3]):  # os.path.basename(folder).startswith('H0') or
             # print(file)
             with np.load(os.path.join(folder, file)) as npz:
                 pce_mat = npz['pce'].flatten()
@@ -36,80 +44,18 @@ def load_videos_pce(folder: str, func=np.mean, perc=95, devices=None):
     return np.array(mean_pce), np.percentile(all_pce, perc), np.max(all_pce)
 
 
-def plot_roc__(axs, title, func=np.mean, devices=None, bar=False, **kwargs):
-    h0 = f'results/H0_{title}'
-    h1 = f'results/H1_{title}'
-    if not (os.path.exists(h0) and os.path.exists(h1)):
-        return 0
-    pce_h0, perc_h0, max_h0 = load_videos_pce(h0, func, devices=devices)
-    pce_h1, perc_h1, max_h1 = load_videos_pce(h1, func, devices=devices)
-    print(f'{h0}  \t{perc_h0:8.4f}  {max_h0:10.4f}')
-    print(f'{h1}  \t{perc_h1:8.4f}  {max_h1:10.4f}')
-    print()
-    
-    # # fixme
-    # step = 4
-    # if frame_type == 'I':
-    #     pce_h0 = pce_h0[0::step]
-    #     pce_h1 = pce_h1[0::step]
-    # elif frame_type == 'P':
-    #     pce_h0 = [pce for i, pce in enumerate(pce_h0) if i % step != 0]
-    #     pce_h1 = [pce for i, pce in enumerate(pce_h1) if i % step != 0]
-    
-    try:
-        labels = [0] * len(pce_h0) + [1] * len(pce_h1)
-        all_pce = np.concatenate([pce_h0, pce_h1])
-        fpr, tpr, thresholds = roc_curve(labels, all_pce, drop_intermediate=False)
-        roc_auc = auc(fpr, tpr)
-    except ValueError as e:
-        print(e)
-        return 0
-    
-    tau_idx = (np.abs(fpr - TARGET_FPR)).argmin()
-    tau = thresholds[tau_idx]
-    
-    if devices is None:
-        devices = ''
-    axs.plot(
-            fpr, tpr, **kwargs,
-            label='[AUC=%0.3f; TPR=%0.3f @ fpr=%0.4f, tau=%0.1f] %s' % (roc_auc, tpr[tau_idx], fpr[tau_idx], tau, title + ' ' + str(devices))
-    )
-    
-    # width = 0.3
-    # gap = 0.05
-    # multiplier = [-1, 1]
-    # new = plot_roc.x > int(plot_roc.x)
-    #
-    # def formatt(val):
-    #     return ('%.3f' % val)[1:] if val < .9999 else '1.00'
-    #
-    # if not bar:
-    #     return
-    #
-    # for i, y, l in zip(multiplier, [roc_auc, tpr[tau_idx]], ['auc', 'tpr']):
-    #     offset = (width + gap) * i * 0.5
-    #     if new:
-    #         kwargs['color'] = cm(1)
-    #         kwargs['zorder'] = -1
-    #     rects = axs[1].bar(int(plot_roc.x) + offset, y, width, label=l, **kwargs)
-    #     axs[1].bar_label(rects, labels=[formatt(y)], padding=3 if new else -15)
-    # plot_roc.x += 0.5
-    
-    return 1
-
-
-def plot_roc(axs, experiments, mode=None, devices=None):
+def plot_roc(axs, experiments, mode=None, device=None, folder='results'):
     pce_h0_all, pce_h1_all = [], []
     modes = ['ALL', 'I0', 'GOP0']
     
     for e in experiments:
         for m in modes if mode is None else [mode]:
-            h0 = f'results/H0_{e}_{m}'
-            h1 = f'results/H1_{e}_{m}'
+            h0 = os.path.join(folder, f'H0_{e}_{m}')
+            h1 = os.path.join(folder, f'H1_{e}_{m}')
             if not (os.path.exists(h0) and os.path.exists(h1)):
                 return None
-            pce_h0, perc_h0, max_h0 = load_videos_pce(h0, devices=devices)
-            pce_h1, perc_h1, max_h1 = load_videos_pce(h1, devices=devices)
+            pce_h0, perc_h0, max_h0 = load_videos_pce(h0, device=device)
+            pce_h1, perc_h1, max_h1 = load_videos_pce(h1, device=device)
             pce_h0_all += pce_h0.tolist()
             pce_h1_all += pce_h1.tolist()
     
@@ -136,17 +82,25 @@ def plot_roc(axs, experiments, mode=None, devices=None):
     plot_roc.experiments.add(title)
     color = cm(len(plot_roc.experiments) - 1)
     
-    tpr_ = tpr if devices is None else tpr - (0.003 * (len(plot_roc.experiments) - 1))  # fixme
-    axs.plot(fpr, tpr_, color=color, lw=1.5, linestyle=['-', '--', ':'][j])
+    tpr_ = tpr if device is None else tpr - (0.003 * (len(plot_roc.experiments) - 1))  # fixme
+    tpr_ = tpr  # if devices is None else tpr - (0.003 * (len(plot_roc.experiments) - 1))  # fixme
+    # axs.plot(fpr, tpr_, color=color, lw=1.5, linestyle=['-', '--', ':'][j])
     numbers = '%0.3f %0.3f %0.1f' % (roc_auc, tpr[tau_idx], thresholds[tau_idx])
     r = [title, mode, *numbers.split(' ')]
     rows.append(r)
     markers.append(['━━━━', '━ ━ ━', '╍╍╍╍'][j])
     colors.append(color)
+    # print(device, tpr[0], tpr[tau_idx])
+    data_tpr[device].append(tpr[tau_idx])
+    data_auc[device].append(roc_auc)
 
 
 plot_roc.x = 0
 plot_roc.experiments = set()
+
+devices = ['D02', 'D05', 'D06', 'D10', 'D14', 'D15', 'D18', 'D19', 'D20', 'D25', 'D29', 'D34']
+data_tpr = {d: [] for d in devices}
+data_auc = {d: [] for d in devices}
 
 
 def plt_setup(xmax=XMAX, ymin=YMIN, xticks=XTICKS, yticks=YTICKS):
@@ -188,16 +142,16 @@ def plt_setup(xmax=XMAX, ymin=YMIN, xticks=XTICKS, yticks=YTICKS):
     return axs
 
 
-def plt_hist(title, method, devices=None):
+def plt_hist(title, method, devices=None, folder='performance'):
     global H0_pce_new
     fig, ax = plt.subplots(4, 1, figsize=(16, 9), tight_layout=True, dpi=300, sharex='col')
     xlim = 200
     bins = np.arange(0, xlim + .5, .5)
     base_title = title
-    title += '_ALL' if devices is None else '_' + '-'.join(devices)
+    title += ' ALL' if devices is None else '_' + '-'.join(devices)
     
     for i in [0, 1]:
-        folder = f'results/results_h{i}_{base_title}'
+        folder = os.path.join(folder, f'H{i}_{method}_ALL')
         files = os.listdir(folder)
         A_pce_all = np.empty(0)
         I_pce_all = np.empty(0)
@@ -214,8 +168,6 @@ def plt_hist(title, method, devices=None):
                 #     I_pce_vid = A_pce_vid[0::4]
                 else:
                     I_pce_vid = np.empty(0)
-                
-                # A_pce_vid = A_pce_vid[A_pce_vid > 19]
                 
                 A_pce_all = np.concatenate((A_pce_all, A_pce_vid))
                 I_pce_all = np.concatenate((I_pce_all, I_pce_vid))
@@ -315,52 +267,72 @@ def main():
         f.write('')
     
     # devices = ['D06', 'D14', 'D15', 'D19', 'D25']
-    devices = [None, None, ['D06'], ['D25']]
+    # devices = [None, None, 'D06', 'D25']
+    titles = ['ROC - ' + ('All Devices' if d is None else f'Device {d}') for d in devices]
     xmaxs = [0.2, 1, 1, 1]
-    ymins = [0.6, 0.6, 0, 0]
+    ymins = [0.55, 0.55, 0, 0]
     xticks = [5, 5, 5, 5]
-    yticks = [9, 9, 11, 11]
+    yticks = [10, 10, 11, 11]
+    xmaxs = [1]*len(devices)
+    ymins = [0]*len(devices)
+    xticks = [5]*len(devices)
+    yticks = [11]*len(devices)
     
-    for device, xmax, ymin, xt, yt in zip(devices, xmaxs, ymins, xticks, yticks):
-        axss = plt_setup(xmax, ymin, xt, yt)
+    methods = ['ICIP', 'NEW', 'RAFT']
+    for i in range(len(devices)):
+        # axss = plt_setup(xmaxs[i], ymins[i], xticks[i], yticks[i])
+        axss = None
         
         rows.clear()
         markers.clear()
         colors.clear()
         plot_roc.experiments.clear()
-        xy_int = xmax == 1
+        xy_int = xmaxs[i] == 1
+        device = devices[i]
         
-        for method in ['ICIP', 'NEW']:
-            modes = [None] if (device is None and xy_int) else ['ALL', 'I0', 'GOP0']
-            for mode in modes:
-                plot_roc(axss, experiments=[method], mode=mode, devices=device)
-        plot_roc(axss, experiments=['RAFT'], devices=device)
-        plot_roc(axss, experiments=['RND', 'RND0', 'RND1', 'RND2', 'RND3'], devices=device)
+        # for method in ['ICIP', 'NEW']:
+        #     modes = ['ALL', 'I0', 'GOP0'] if (device is None and not xy_int) else [None]
+        #     for mode in modes:
+        #         plot_roc(axss, experiments=[method], mode=mode, device=device, folder='performance')
+        # plot_roc(axss, experiments=['RAFT'], device=device, folder='performance')
+        # plot_roc(axss, experiments=['RND', 'RND0', 'RND1', 'RND2', 'RND3'], device=device)
+        #
+        # collabel = ('Method', 'Mode', 'AUC', 'TPR', 'τ')
+        # table = axss.table(cellText=rows, colLabels=collabel,
+        #                    loc='center', cellLoc='center',
+        #                    colWidths=[0.1] * len(rows[0]),
+        #                    bbox=[0.55, 0.01, .44, .032 * (len(rows) + 1)])
+        # height = table.get_celld()[0, 0].get_height()
+        # for j in range(len(rows)):
+        #     cell = table.add_cell(j + 1, -2, width=0.1, height=height, text=markers[j], loc='center')
+        #     cell.get_text().set_color(colors[j])
+        # table.auto_set_font_size(False)
+        # table.set_fontsize(9)
         
-        collabel = ('Method', 'Mode', 'AUC', 'TPR', 'τ')
-        table = axss.table(cellText=rows, colLabels=collabel,
-                           loc='center', cellLoc='center',
-                           colWidths=[0.1] * len(rows[0]),
-                           bbox=[0.55, 0.01, .44, .032 * (len(rows) + 1)])
-        height = table.get_celld()[0, 0].get_height()
-        for i in range(len(rows)):
-            cell = table.add_cell(i + 1, -2, width=0.1, height=height, text=markers[i], loc='center')
-            cell.get_text().set_color(colors[i])
-        table.auto_set_font_size(False)
-        table.set_fontsize(9)
+        for method in methods:
+            plot_roc(axss, experiments=[method], device=device, folder='performance')
+        plot_roc(axss, experiments=['RND', 'RND0', 'RND1', 'RND2', 'RND3'], device=device)
         
-        # bar_labels = 'AUC, TPR\n%s'
-        # ticks = [bar_labels % 'ALL']
-        # for device in devices:
-        #     ticks += [bar_labels % device]
-        # axss[1, a].set_xticks(range(len(devices) + 1), ticks)
-        
-        dev = 'all' if device is None else '-'.join(device)
-        if not xy_int:
-            dev += f'_{xmax}-{ymin}'
-        plt.savefig(f'plot/roc_{dev}.png')
-        plt.show()
-
+        # dev = 'all' if device is None else device
+        # if not xy_int:
+        #     dev += f'_{xmaxs[i]}-{ymins[i]}'
+        # axss.set_title(titles[i])
+        # plt.savefig(f'plot/roc_{dev}.png')
+        # plt.show()
+    
+    methods.append('RND')
+    # data_tpr = data_auc
+    data_tpr_ = [[k, *v] for k, v in data_tpr.items()]
+    print(data_tpr_)
+    df = pd.DataFrame(data_tpr_, columns=['Device', *methods])
+    df.plot(x='Device', y=methods, kind='bar', figsize=(10, 2.6))
+    plt.tight_layout(rect=[.02, -0.1, 1, .9])
+    plt.ylabel('TPR @ FPR=0.05')
+    plt.grid(axis='y', which='major')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.22), ncol=4)
+    plt.xticks(rotation=0)  # Adjust the rotation angle as needed
+    plt.savefig('plot/tpr.pdf')
+    plt.show()
 
 if __name__ == '__main__':
     main()
